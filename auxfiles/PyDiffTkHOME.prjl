@@ -1,0 +1,21 @@
+PyDiffTk.py project file
+LeftPathEntry~C:\Users\dbkaynox\DougPython\tst01
+RightPathEntry~C:\Users\dbkaynox\DougPython\tst02
+FilterEntry~
+SystemEditorVar~C:\Program Files (x86)\Notepad++\notepad++.exe
+SystemDifferVar~C:\Program Files (x86)\WinMerge\WinMergeU.exe
+SystemRenamerVar~C:\Program Files (x86)\Ant Renamer\Renamer.exe
+CheckSUMDataFileVar~C:\Users\dbkaynox\DougPython\auxfiles\PyDiff_Tk.chk
+ShowRightCheckVar~1
+ShowLeftCheckVar~1
+ShowBothCheckVar~1
+ShowDiffCheckVar~0
+AutoRefreshCheckVar~0
+ConfirmCopyCheckVar~1
+ConfirmRenameCheckVar~1
+ConfirmDeleteCheckVar~1
+RecycleCheckVar~1
+CheckSumAutoVar~1
+CheckSumTypeVar~3
+FileTimeTriggerScaleVar~513
+TriggerNumberOfFilesVar~10

@@ -1,0 +1,21 @@
+PyDiffTk.py project file
+LeftPathEntry~/media/doug/Lexar
+RightPathEntry~/media/doug/KINGSTON
+FilterEntry~
+SystemEditorVar~
+SystemDifferVar~
+SystemRenamerVar~
+CheckSUMDataFileVar~/home/doug/DougPython/auxfiles/PyDiffTk.prjl
+ShowRightCheckVar~1
+ShowLeftCheckVar~1
+ShowBothCheckVar~0
+ShowDiffCheckVar~1
+AutoRefreshCheckVar~0
+ConfirmCopyCheckVar~1
+ConfirmRenameCheckVar~1
+ConfirmDeleteCheckVar~1
+RecycleCheckVar~1
+CheckSumAutoVar~0
+CheckSumTypeVar~2
+FileTimeTriggerScaleVar~10
+TriggerNumberOfFilesVar~10

@@ -1,0 +1,11 @@
+#TODO
+# Help
+# Fix allowing batch to remove directories
+# Remote access (google music, docs and ftp sites)
+# Check source and destinations for permissions and ownership
+# Delete permission does not work
+# Testing for success does not work
+# Allow abort of batch mode
+# Make tool tip or something else to view entire list column
+# Column resize???
+# Locate function
