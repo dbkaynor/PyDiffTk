@@ -1,11 +1,9 @@
 #!/usr/bin/python
 #
-# joel.a.gibson@intel.com
 # edward.s.macgillivray@intel.com
 # sergeyx.Belikov@intel.com
 # andrewx.r.radke@intel.com
 
-#TODO
 # Help
 # Fix allowing batch to remove directories
 # Remote access (google music, docs and ftp sites)
@@ -13,9 +11,16 @@
 # Delete permission does not work
 # Testing for success does not work
 # Allow abort of batch mode
+# Confirm options for batch versus file
 # Make tool tip or something else to view entire list column
 # Column resize???
-# Locate function
+# Locate function does not work for linux
+# Clear
+# return to same line after refresh  DONE
+# Multi select and copy
+# free space on disk
+# Switch left and right
+# History functions
 #
 # Walkway lights
 # GeoMetro car seat, center tail light
@@ -57,10 +62,10 @@ class Vars:
     BatchTopLevelVar = None
     FileInfoTopLevelVar = None
     SplashTopLevelVar = None
-    HistoryTopLevelVar = None
     FileRenameTopLevelVar = None
     DataBox = None
     DataFrame = None
+    HistoryTopLevelVar = None
     HistoryList = []
 
     CheckSumAutoVar = BooleanVar()
@@ -122,7 +127,7 @@ def StartUpStuff():
         Vars.ProjectFileExtensionVar.set('prjw')
 
     Vars.StartUpDirectoryVar.set(os.getcwd())
-    Vars.AuxDirectoryVar.set(os.path.join(Vars.StartUpDirectoryVar.get(),'auxfiles'))
+    Vars.AuxDirectoryVar.set(os.path.join(Vars.StartUpDirectoryVar.get(),'auxfiles','.'))
     Vars.HelpFileVar.set(os.path.join(Vars.AuxDirectoryVar.get(),'PyDiffTk.hlp'))
     SetUpLogger()
 
@@ -148,12 +153,30 @@ def ParseCommandLine():
     else:
         Logger('debug is off', getframeinfo(currentframe()))
 #------------------------------
+#This will either delete a file or move it to trash
+def RemoveAFile(File, Trash):
+    #if os.access(FileName,os.W_OK)
+    Logger('Remove a file: ' + File + str(Trash), getframeinfo(currentframe()))
+    if not os.path.exists(File):
+        return
+    if Trash:
+        try:
+            send2trash(File)
+        except OSError:
+            tkinter.messagebox.showerror('Send file to trash error. ' ,File + '\nPermissions?')
+    else:
+        try:
+            os.remove(File)
+        except OSError:
+            tkinter.messagebox.showerror('Delete a file error. ' ,File + '\nPermissions?')
+#------------------------------
 #Setup the logger
 def SetUpLogger():
     Vars.LogFileNameVar.set(os.path.join(Vars.StartUpDirectoryVar.get(),'PyDiffTk.log'))
     logger = logging.getLogger(Vars.LogFileNameVar.get())
     #logger.setLevel(logging.DEBUG)
-    if os.path.exists(Vars.LogFileNameVar.get()): os.remove(Vars.LogFileNameVar.get())
+    RemoveAFile(Vars.LogFileNameVar.get(), Trash = False)
+    #if os.path.exists(Vars.LogFileNameVar.get()): os.remove(Vars.LogFileNameVar.get())
     logger = logging.basicConfig(level=logging.DEBUG,
                 filename=Vars.LogFileNameVar.get(),
                 format='%(asctime)s %(levelname)s: %(message)s',
@@ -331,6 +354,9 @@ if __name__ == '__main__':
     def FetchData():
         SplashScreen('FetchData is running', True)
         Logger('Fetch data', getframeinfo(currentframe()), ShowInStatus = True, PrintToCommandLine = False)
+
+        print(re.sub("[^0-9]", "", str(Vars.DataBox.curselection())), str(Vars.DataBox.size()-1))
+        DataBoxCurrentLine = re.sub("[^0-9]", "", str(Vars.DataBox.curselection()))
         Vars.DataBox.delete(0, END)
 
         if not os.path.isdir(Vars.LeftPathEntry.get()):
@@ -428,6 +454,11 @@ if __name__ == '__main__':
         Vars.StatusVar.set('Compare complete. Items: ' + str(Vars.DataBox.size()-1))
         Vars.ShowLineNumberVar.set('No line selected of ' + str(Vars.DataBox.size()-1))
         SplashScreen('FetchData is closing', False)
+
+        if DataBoxCurrentLine > str(Vars.DataBox.size()-1): DataBoxCurrentLine = 0
+        Vars.DataBox.selection_set(DataBoxCurrentLine)
+        Vars.DataBox.see(DataBoxCurrentLine)
+
         Main.update()
 #------------------------------
     def crc32file(filename):
@@ -524,17 +555,20 @@ if __name__ == '__main__':
 
         if Vars.RecycleCheckVar.get() == 0:
             Logger('os.remove', getframeinfo(currentframe()))
-            if os.path.exists(file1): os.remove(file1)
-            if os.path.exists(file2): os.remove(file2)
+            RemoveAFile(file1, Trash = False)
+            RemoveAFile(file2, Trash = False)
+            #if os.path.exists(file1): os.remove(file1)
+            #if os.path.exists(file2): os.remove(file2)
         else:
-            Logger('send2trash', getframeinfo(currentframe()))
             if os.path.exists(file1):
-                send2trash(file1)
+                #send2trash(file1)
+                RemoveAFile(file1, Trash = True)
                 if os.path.exists(file1): #This tests to see if the operation worked
                     if tkinter.messagebox.showerror(Message + ' failed',file1):
                         Logger(Message + ' failed ' + file1, getframeinfo(currentframe()), True)
             if os.path.exists(file2):
-                send2trash(file2)
+                #send2trash(file2)
+                RemoveAFile(file2, Trash = True)
                 if os.path.exists(file2): #This tests to see if the operation worked
                     if tkinter.messagebox.showerror(Message + ' failed',file2):
                         Logger(Message + ' failed ' + file2, getframeinfo(currentframe()),True)
@@ -651,7 +685,7 @@ if __name__ == '__main__':
             FileRenameTopLevelVar.resizable(0,0)
 
             Main.update()
-            FileRenameTopLevelSizeX = 420
+            FileRenameTopLevelSizeX = 460
             FileRenameTopLevelSizeY = 110
             Mainsize = Main.geometry().split('+')
             x = int(Mainsize[1]) + FileRenameTopLevelSizeX / 2
@@ -691,11 +725,13 @@ if __name__ == '__main__':
             Button(FileRenameFrame3, text='Capitalize', width=12, command=self.Capitalize).pack(side=LEFT)
 
 #------------------------------
+#TODO 'This does not work for linux'
     def LocateFile(path):
         Logger(sys.platform, getframeinfo(currentframe()),False)
         if sys.platform == 'linux2':
-            #subprocess.call(['explorer.exe',path])
-            os.system('xdg-open ' + path)
+            print('This does not work for linux ' + path)
+            subprocess.call(['dolpin',path]) #Konqueror
+            #os.system('xdg-open ' + path)
         elif sys.platform == 'win32':
             subprocess.call(['explorer.exe',path])
 
@@ -1362,29 +1398,37 @@ if __name__ == '__main__':
                         Logger('Delete left. ' + RowStrSplit[0], getframeinfo(currentframe()), True)
                         if os.path.exists(RowStrSplit[0]) and os.path.isfile(RowStrSplit[0]):
                             if Vars.RecycleCheckVar.get() == 0:
-                                os.remove(RowStrSplit[0])
+                                RemoveAFile(RowStrSplit[0], Trash = False)
+                                #os.remove(RowStrSplit[0])
                             else:
-                                send2trash(RowStrSplit[0])
+                                #send2trash(RowStrSplit[0])
+                                RemoveAFile(RowStrSplit[0], Trash = True)
                     elif Trace == 'right': #Delete right
                         Logger('Delete right. ' + RowStrSplit[0], getframeinfo(currentframe()), True)
                         if os.path.exists(RowStrSplit[1]) and os.path.isfile(RowStrSplit[1]):
                             if Vars.RecycleCheckVar.get() == 0:
-                                 os.remove(RowStrSplit[1])
+                                RemoveAFile(RowStrSplit[1], Trash = False)
+                                #os.remove(RowStrSplit[1])
                             else:
-                                send2trash(RowStrSplit[1])
+                                #send2trash(RowStrSplit[1])
+                                RemoveAFile(RowStrSplit[1], Trash = True)
                     elif Trace == 'auto': #Delete auto deletes whatever exists
                         Logger('Delete auto. ' + RowStrSplit[0], getframeinfo(currentframe()), True)
                         if os.path.exists(RowStrSplit[0]) and os.path.isfile(RowStrSplit[0]):
                             if Vars.RecycleCheckVar.get() == 0:
-                                os.remove(RowStrSplit[0])
+                                RemoveAFile(RowStrSplit[0], Trash = False)
+                                #os.remove(RowStrSplit[0])
                             else:
-                                send2trash(RowStrSplit[0])
+                                RemoveAFile(RowStrSplit[0], Trash = True)
+                                #send2trash(RowStrSplit[0])
 
                         if os.path.exists(RowStrSplit[1]) and os.path.isfile(RowStrSplit[1]):
                             if Vars.RecycleCheckVar.get() == 0:
-                                os.remove(RowStrSplit[1])
+                                RemoveAFile(RowStrSplit[1], Trash = False)
+                                #os.remove(RowStrSplit[1])
                             else:
-                                send2trash(RowStrSplit[1])
+                                #send2trash(RowStrSplit[1])
+                                RemoveAFile(RowStrSplit[1], Trash = True)
                     else: Logger('ERROR with batch delete ' + Trace, getframeinfo(currentframe()))
 
                 SplashScreen('Batch Delete is closing: ' + Trace, False)
@@ -1610,10 +1654,19 @@ if __name__ == '__main__':
 
         tkinter.messagebox.showinfo('Help', help)
 #------------------------------
+#Swap the left and right entry boxes
+    def SwapLeftAndRight():
+        temp1 = Vars.LeftPathEntry.get()
+        temp2 = Vars.RightPathEntry.get()
+        Vars.LeftPathEntry.delete(0,END)
+        Vars.LeftPathEntry.insert(0,temp2)
+        Vars.RightPathEntry.delete(0,END)
+        Vars.RightPathEntry.insert(0,temp1)
+#------------------------------
 
 #HistoryTopLevelVar = None
-#    class Options:
-#    def ShowOptionsForm(self):
+#   class Options:
+#   def ShowOptionsForm(self):
     class History:
         HistoryVar = StringVar()
         def HistoryAdd(self, LeftPath, RightPath):
@@ -1706,7 +1759,7 @@ if __name__ == '__main__':
     DirectoriesSelectMenu.add_command(label='Select left directory', command=lambda: FetchDirectories('Left'))
     DirectoriesSelectMenu.add_command(label='Select right directory', command=lambda: FetchDirectories('Right'))
 
-    DirectoriesSelectMenu.add_command(label='History', command=HistoryInstance.HistoryGoto)
+    #DirectoriesSelectMenu.add_command(label='History', command=HistoryInstance.HistoryGoto)
 
     menubar.add_cascade(menu=ProjectsMenu, label='Projects')
     ProjectsMenu.add_command(label='Load', command=ProjectLoad)
@@ -1734,6 +1787,7 @@ if __name__ == '__main__':
 
     OptionsMenu.add_separator()
     OptionsInstance = Options()
+    OptionsMenu.add_command(label='Swap left and right',command=SwapLeftAndRight)
     OptionsMenu.add_command(label='Other settings',command=OptionsInstance.ShowOptionsForm)
 
     menubar.add_cascade(menu=OtherMenu, label='Other')
