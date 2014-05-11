@@ -1,3 +1,18 @@
+ButtonRelease-1, Select a row
+ButtonRelease-2, Show batch form
+ButtonRelease-3, Show file form
+
+F1 Help
+F2 About
+F3 ClearAll
+F5 FetchData
+F7 Display Selected list
+F8 Add to Selected list
+F9 Clear Selected list
+F12 Show file info
+
+Control-Q : Quit the program
+
 #TODO
 # Help
 # Fix allowing batch to remove directories
@@ -5,7 +20,11 @@
 # Check source and destinations for permissions and ownership
 # Delete permission does not work
 # Testing for success does not work
-# Allow abort of batch mode
+# A search function
+# Confirm options for batch versus file
 # Make tool tip or something else to view entire list column
 # Column resize???
-# Locate function
+# Locate function does not work for linux
+# Multi select and copy and move
+# Free space on disk
+# History functions

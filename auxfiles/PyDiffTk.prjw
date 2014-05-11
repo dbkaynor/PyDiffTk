@@ -1,11 +1,20 @@
 PyDiffTk.py project file
+#All lines with # in the first column are comments
+#All line that do not contain ~ are comments
+#Comments are always stored starting at line 2 in the project file
+
 LeftPathEntry~C:\Users\dbkaynox\DougPython\tst01
 RightPathEntry~C:\Users\dbkaynox\DougPython\tst02
 FilterEntry~
-SystemEditorVar~C:\Program Files (x86)\Notepad++\notepad++.exe
+SearchEntry~
+LeftSearchVar~1
+RightSearchVar~1
+StatusSearchVar~0
+MoreSearchVar~0
+SystemEditorVar~c:\windows\notepad.exe
+SystemLocaterVar~explorer.exe
 SystemDifferVar~C:\Program Files (x86)\WinMerge\WinMergeU.exe
 SystemRenamerVar~C:\Program Files (x86)\Ant Renamer\Renamer.exe
-CheckSUMDataFileVar~C:\Users\dbkaynox\DougPython\auxfiles\PyDiff_Tk.chk
 ShowRightCheckVar~1
 ShowLeftCheckVar~1
 ShowBothCheckVar~0

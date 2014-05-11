@@ -1,4 +1,8 @@
 PyDiffTk.py project file
+#All lines with # in the first column are comments
+#All line that do not contain ~ are comments
+#Comments are always stored starting at line 2 in the project file
+
 LeftPathEntry~C:\Users\dbkaynox\DougPython\tst01
 RightPathEntry~C:\Users\dbkaynox\DougPython\tst02
 FilterEntry~
