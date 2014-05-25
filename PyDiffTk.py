@@ -3,30 +3,9 @@
 # edward.s.macgillivray@intel.com
 # sergeyx.Belikov@intel.com
 # andrewx.r.radke@intel.com
-
-# Help
-# Fix allowing batch to remove directories
-# Remote access (google music, docs and ftp sites)
-# Check source and destinations for permissions and ownership
-# Delete permission does not work
-# Testing for success does not work
-# Allow comments in project files
-# Allow abort of batch mode
-# A search function
-# Confirm options for batch versus file
-# Make tool tip or something else to view entire list column
-# Column resize???
-# Locate function does not work for linux
-# Multi select and copy and move
-# Free space on disk
-# History functions
-#
-# Walkway lights
-# GeoMetro car seat, center tail light
-# Trailer lights
 #
 # http://www.shayanderson.com/linux/using-git-with-remote-repository.htm
-# https://packages.debian.org/squeeze/ia32-libs
+# http://infohost.nmt.edu/tcc/help/pubs/tkinter/web/index.html
 #
 import sys, os, time, platform
 import subprocess
@@ -54,6 +33,7 @@ import pprint
 pp=pprint.pprint
 
 Main = tkinter.Tk()
+Main.option_add("*Dialog.msg.wrapLength", "20i")
 
 class Vars:
     OptionsTopLevelVar = None
@@ -64,9 +44,9 @@ class Vars:
     DataBox = None
     DataFrame = None
     HistoryTopLevelVar = None
-    HistoryList = []
-    CommentsVarList = []
-    SelectedList = []
+    HistoryListVar = []
+    CommentsListVar = []
+    SelectedListVar = []
 
     CheckSumAutoVar = BooleanVar()
     CheckSumTypeVar = IntVar()
@@ -90,6 +70,7 @@ class Vars:
     ShowDiffCheckVar = BooleanVar()
     ShowLeftCheckVar = BooleanVar()
     ShowRightCheckVar = BooleanVar()
+    ShowDirectoriesCheckVar = BooleanVar()
     AutoRefreshCheckVar = BooleanVar()
     RecycleCheckVar = BooleanVar()
     ConfirmCopyCheckVar = BooleanVar()
@@ -99,24 +80,58 @@ class Vars:
     LeftPathEntry = None
     RightPathEntry = None
     FilterEntry = None
+    SearchEntryBatch = None
+    SearchEntryMain = None
     LeftSearchVar = BooleanVar()
     RightSearchVar = BooleanVar()
     StatusSearchVar = BooleanVar()
     MoreSearchVar = BooleanVar()
     CaseSearchVar = BooleanVar()
+    BatchBlockMode = BooleanVar()
+    BatchNumberItemsVar = StringVar()
+#------------------------------
+def MyMessageBox(Title='MyMessageBox', XSize=250, YSize=120 ):
+    MyMessageBoxToplevel = Toplevel()
+    MyMessageBoxToplevel.title(Title)
+    MyMessageBoxToplevel.wm_transient(Main)
+    MyMessageBoxToplevelX = XSize
+    MyMessageBoxToplevelY = YSize
+    Mainsize = Main.geometry().split('+')
+    x = int(Mainsize[1]) + (MyMessageBoxToplevelX / 2)
+    y = int(Mainsize[2]) + (MyMessageBoxToplevelY / 2)
+    MyMessageBoxToplevel.geometry("%dx%d+%d+%d" % (MyMessageBoxToplevelX, MyMessageBoxToplevelY, x, y))
+    MyMessageBoxToplevel.resizable(1,0)
+
+    Label(MyMessageBoxToplevel, text='Left:  ' + Vars.DataBox.get(Current)[0],
+        relief=GROOVE).pack(expand=FALSE, fill=X)
+    Label(MyMessageBoxToplevel, text='Right:  ' + Vars.DataBox.get(Current)[1],
+        relief=GROOVE).pack(expand=FALSE, fill=X)
+    Label(MyMessageBoxToplevel, text='Status:  ' + Vars.DataBox.get(Current)[2],
+        relief=GROOVE).pack(expand=FALSE, fill=X)
+    Label(MyMessageBoxToplevel, text='More:  ' + Vars.DataBox.get(Current)[3],
+        relief=GROOVE).pack(expand=FALSE, fill=X)
+    Button(MyMessageBoxToplevel, text='Close', command=lambda : MyMessageBoxToplevel.destroy()).pack()
+#------------------------------
+#Parses the frame inspect information
+def MyTrace(FrameInfoDict):
+    filename = 0
+    lineno = 1
+    function = 2
+    return FrameInfoDict[function], FrameInfoDict[lineno], FrameInfoDict[filename]
 #------------------------------
 #LogLevel 0 is log everything
-def Logger(LogMessage, FrameInfoDict, LogLevel = 0, ShowInStatus = False, PrintToCommandLine = False):
+def Logger(LogMessage = '', FrameInfoDict=None, ShowInStatus=False, PrintToCommandLine=False):
     MyLogger = logging.getLogger(Vars.LogFileNameVar.get())
-    mystr = LogMessage + ' Module:' + str(FrameInfoDict[0]) +  '  Line:' + str(FrameInfoDict[1])
+    mystr = LogMessage + '  Trace: ' + str(MyTrace(FrameInfoDict))
     MyLogger.debug(mystr)
     if PrintToCommandLine: print(mystr)
     if ShowInStatus: Vars.StatusVar.set(LogMessage)
+    Main.update()
 '''
 debug, info,warning, error, critical, log, exception
 '''
-
 #------------------------------
+#Set up defaults in case there is no project file
 #Intialize the variables
 #Written over by StartUpStuff and by ProjectLoad
 def SetDefaults():
@@ -132,6 +147,7 @@ def SetDefaults():
         Vars.ShowLeftCheckVar.set(True)
         Vars.ShowBothCheckVar.set(True)
         Vars.ShowDiffCheckVar.set(True)
+        Vars.ShowDirectoriesCheckVar.set(True)
         Vars.AutoRefreshCheckVar.set(True)
         Vars.ConfirmCopyCheckVar.set(True)
         Vars.ConfirmRenameCheckVar.set(True)
@@ -172,7 +188,7 @@ def StartUpStuff():
 
     Logger(str(os.environ.get('OS')), getframeinfo(currentframe()))
     Logger(str(platform.uname()), getframeinfo(currentframe()))
-    Logger('Number of argument(s): ' + str(len(sys.argv)), getframeinfo(currentframe()), True)
+    Logger('Number of argument(s): ' + str(len(sys.argv)), getframeinfo(currentframe()), ShowInStatus=True)
     Logger('Argument List: ' + str(sys.argv), getframeinfo(currentframe()))
     ProjectLoad('default') # Now get the project settings
 
@@ -190,44 +206,69 @@ def ParseCommandLine():
     else:
         Logger('debug is off', getframeinfo(currentframe()))
 #------------------------------
+#This updates the ShowLineNumberVar label
+def Update():
+    Vars.ShowLineNumberVar.set(str(Vars.DataBox.curselection()) + ' of ' + str(Vars.DataBox.size()-1))
+    Vars.DataBoxTooltipVar = str(Vars.DataBox.curselection())
+    Vars.BatchNumberItemsVar.set(str(Vars.DataBox.curselection()) + ' of ' + str(Vars.DataBox.size()-1))
+#------------------------------
 # Bound to F7
-def ShowSelectedList(x):
-    print('F7')
-    #Vars.SelectedList.sort()
-    print(Vars.SelectedList, len(Vars.SelectedList))
+# x is a junk parameter
+# Displays Vars.SelectedListVar by updating DataBox
+def ShowSelectedList(x=''):
+    print(MyTrace(getframeinfo(currentframe())),'ShowSelectedList')
+    #if Vars.BatchBlockMode.get(): return
     Vars.DataBox.selection_clear(0, 99999)
-    for x in Vars.SelectedList:
-        print(x)
+    for x in Vars.SelectedListVar:
+        print(MyTrace(getframeinfo(currentframe())),x)
         Vars.DataBox.selection_set(x)
         Vars.DataBox.see(x)
+    Update()
 #------------------------------
 # Bound to F8
-def AddToSelectedList(x):
-    print('F8')
+# x is a junk parameter
+# Adds any selected rows to Vars.SelectedListVar and updates DataBox
+def AddSelectedToList(x=''):
+    if Vars.BatchBlockMode.get(): return
     # Get the currently selected index
     Current = str(Vars.DataBox.curselection())
-    # Clean it up and append to the list
+    # Clean it up and extend to the list
     Current = re.sub('[(),\']','',Current)
-    Vars.SelectedList.append(Current)
+
+    if len(Current) < 1: return # Nothing is selected so abort
+
+    tmp = Current.split(' ')
+    Vars.SelectedListVar.extend(tmp)
+
     # Now remove the dups from the list
-    u = []
-    for x in Vars.SelectedList:
-        if x not in u:
-            u.append(x)
-    Vars.SelectedList = u
-    # Clear DataBox and populate it
-    print(Vars.SelectedList, len(Vars.SelectedList))
+    TempList = []
+    for x in Vars.SelectedListVar:
+        if x not in TempList:
+            TempList.append(x)
+    Vars.SelectedListVar = TempList
+
+    # Clear DataBox and then repopulate it
     Vars.DataBox.selection_clear(0, 99999)
-    for y in Vars.SelectedList:
-        print(y)
-        Vars.DataBox.selection_set(y)
-        Vars.DataBox.see(y)
+    for row in Vars.SelectedListVar:
+        Vars.DataBox.selection_set(row)
+        Vars.DataBox.see(row)
+    Update()
+#------------------------------
+#Will Remove a row from Vars.SelectedListVar and the Databox
+def RemoveARow():
+    print(MyTrace(getframeinfo(currentframe())),'Remove a row from Vars.SelectedListVar and the Databox')
+    tkinter.messagebox.showerror('RemoveARow' ,'Not ready yet\n' + str(MyTrace(getframeinfo(currentframe()))))
+    Update()
 #------------------------------
 # Bound to F9
-def ClearSelectedList(x):
-    print('F9')
-    Vars.SelectedList = []
+# x is a junk parameter
+# Clears Vars.SelectedListVar and the Databox
+def ClearSelectedList(x=''):
+    print(Vars.BatchBlockMode.get())
+    #if Vars.BatchBlockMode.get(): return
+    Vars.SelectedListVar = []
     Vars.DataBox.selection_clear(0, 99999)
+    Update()
 #------------------------------
 #This will either delete a file or move it to trash
 def RemoveAFile(File, Trash):
@@ -282,10 +323,9 @@ def StartFile(filename, arg1='', arg2='', arg3=''):
 #------------------------------#
 if __name__ == '__main__':
 #------------------------------
-    #This clears everything
+    #This clears everything, terminal, GUI etc.
     def ClearAll():
-        Logger('Clear everything', getframeinfo(currentframe()),
-            ShowInStatus = True, PrintToCommandLine = False)
+        Logger('Clear everything', getframeinfo(currentframe()), ShowInStatus=True)
         Vars.FileRenameTopLevelVar.withdraw()
         Vars.FileInfoTopLevelVar.withdraw()
         Vars.OptionsTopLevelVar.withdraw()
@@ -296,8 +336,7 @@ if __name__ == '__main__':
         Main.update_idletasks()
 #------------------------------
     def UpdatePathEntry(trace,Path):
-        Logger('UpdatePathEntry ' + trace + ' ' + Path, getframeinfo(currentframe()),
-            ShowInStatus = False, PrintToCommandLine = False)
+        Logger('UpdatePathEntry ' + trace + ' ' + Path, getframeinfo(currentframe()))
         if os.path.isdir(Path):
             if not os.path.isdir(Path) or not os.access(Path, os.W_OK):
                 tkinter.messagebox.showinfo('UpdatePathEntry error',
@@ -312,32 +351,43 @@ if __name__ == '__main__':
         else:
             tkinter.messagebox.showinfo('UpdatePathEntry error', 'Bad trace\n' + trace + '\n' + Path)
 #------------------------------
-#This searchs for a matching string in the data and selects the line
-
-# if Vars.CaseSearchVar.get() == False
-    def SearchData(): #TODO
+#This searches for matching strings in the data and selects the lines that match
+#CaseSearchVar enables/disables case sensitive searchs
+#The user can select what data columns to search
+#Null search is not allowed
+    def SearchData(Mode):
+        Logger('SearchData ' + Mode, getframeinfo(currentframe()))
         Vars.DataBox.selection_clear(0, Vars.DataBox.size())
-        a = Vars.SearchEntry.get()
+        if Mode == 'main':
+            a = Vars.SearchEntryMain.get()
+        if Mode == 'batch':
+            a = Vars.SearchEntryBatch.get()
+        if len(a) < 1: return #No null searchs
         if Vars.CaseSearchVar.get(): a = a.upper()
 
         for x in range(0,Vars.DataBox.size()):
+            Found = False
             b = Vars.DataBox.get(x)
             if Vars.CaseSearchVar.get(): b = [x.upper() for x in b]
-            if a in str(b):
+            if Vars.LeftSearchVar.get():
+                if a in b[0]: Found = True
+            if Vars.RightSearchVar.get():
+                if a in b[1]: Found = True
+            if Vars.StatusSearchVar.get():
+                if a in b[2]: Found = True
+            if Vars.MoreSearchVar.get():
+                if a in b[3]: Found = True
+            if Found:
                 Vars.DataBox.selection_set(x)
                 Vars.DataBox.see(x)
 #------------------------------
 #Quit the program
     def Quit():
         Logger('Quit', getframeinfo(currentframe()))
-        if tkinter.messagebox.askyesno('Quit', 'Really quit?') == True:
+        if tkinter.messagebox.askyesno('Quit', 'Really quit?'):
             Main.destroy()
             sys.exit(0)
-#------------------------------
-#This updates the ShowLineNumberVar label
-    def Update():
-        print('Update')
-        Vars.ShowLineNumberVar.set(str(Vars.DataBox.curselection()) + ' of ' + str(Vars.DataBox.size()-1))
+
 #------------------------------
     def GetType(FileName):
         tmp = ''
@@ -345,7 +395,7 @@ if __name__ == '__main__':
         if os.path.isdir(FileName): tmp += 'Dir, '
         if os.path.islink(FileName): tmp += 'Link, '
         if os.path.ismount(FileName): tmp += 'Mount, '
-        if os.access(FileName,os.W_OK) == False: tmp += 'Read only, '
+        if not os.access(FileName,os.W_OK): tmp += 'Read only, '
         return tmp
 #------------------------------
     def FetchDirectories(Trace):
@@ -377,7 +427,7 @@ if __name__ == '__main__':
     def GetCheckSum(FileName, Force=False):
         if not os.path.isfile(FileName):
             return 'Checksum not tested. Not a file.'
-        if Vars.CheckSumAutoVar.get() == False and Force == False:
+        if not Vars.CheckSumAutoVar.get() and not Force:
             return 'Checksum not auto-enabled.'
         if Vars.CheckSumTypeVar.get() == 1: # crc32file
             return str(crc32file(FileName))
@@ -422,7 +472,7 @@ if __name__ == '__main__':
 #------------------------------
     def FetchData():
         SplashScreen('FetchData is running', True)
-        Logger('Fetch data', getframeinfo(currentframe()), ShowInStatus = True, PrintToCommandLine = False)
+        Logger('Fetch data', getframeinfo(currentframe()), ShowInStatus=True)
 
         DataBoxCurrentLine = re.sub("[^0-9]", "", str(Vars.DataBox.curselection()))
         Vars.DataBox.delete(0, END)
@@ -446,19 +496,20 @@ if __name__ == '__main__':
         ActualTotalFiles =  LeftNumberOfFiles + RightNumberOfFiles
         Logger('Disable stuff: ' + str(ActualTotalFiles)+ '   ' + str( Vars.TriggerNumberOfFilesVar.get()), getframeinfo(currentframe()))
 
+        #Decide to disable autorefresh and/or checksum
         if (ActualTotalFiles > Vars.TriggerNumberOfFilesVar.get()) and not Vars.DoNotAskNumberOfFilesVar.get():
             Vars.DoNotAskNumberOfFilesVar.set(True)
             if Vars.AutoRefreshCheckVar.get(): #enabled
                 if tkinter.messagebox.askyesno(str(ActualTotalFiles) + ' files to be processed','Disable autorefresh?'):
                     Vars.AutoRefreshCheckVar.set(False)
-            if Vars.CheckSumAutoVar.get() == True:
+            if Vars.CheckSumAutoVar.get(): #enabled
                 if tkinter.messagebox.askyesno(str(ActualTotalFiles) + ' files to be processed','Disable checksum?'):
-                    Vars.CheckSumAutoVar.get() == False
+                    Vars.CheckSumAutoVar.set(False)
 
         Vars.StatusVar.set('Starting the compare')
         comparison = filecmp.dircmp(Vars.LeftPathEntry.get(), Vars.RightPathEntry.get())
 
-        if (Vars.ShowBothCheckVar.get() == TRUE):
+        if Vars.ShowBothCheckVar.get():
             new = sorted(comparison.common)
             for name in new:
                 if Vars.FilterEntry.get().upper() in name.upper():
@@ -467,20 +518,23 @@ if __name__ == '__main__':
                     CompareString = ''
                     CompareString += GetType(LeftName)
                     CompareString += GetType(RightName)
+
+                    if not Vars.ShowDirectoriesCheckVar.get(): #Don't show directories
+                        if 'Dir' in CompareString: continue
+
                     if os.path.getsize(LeftName) != os.path.getsize(RightName):
                         CompareString += 'Size, '
                     #Check sum is tested only if CheckSumAutoVar is True and item is in both left and right
-                    if Vars.CheckSumAutoVar.get() == True and \
-                        GetCheckSum(LeftName) != GetCheckSum(RightName):
+                    if Vars.CheckSumAutoVar.get() and GetCheckSum(LeftName) != GetCheckSum(RightName):
                         CompareString += 'CheckSum, '
 
                     TimeDiff = abs(os.path.getmtime(LeftName) - os.path.getmtime(RightName))
                     if TimeDiff < 1:
                         pass
                     elif TimeDiff > Vars.FileTimeTriggerScaleVar.get():
-                        CompareString += 'TIME, '
+                        CompareString += 'TIME, ' #Big time difference
                     else:
-                        CompareString += 'time, '
+                        CompareString += 'time, ' #Small time difference
                     Vars.DataBox.insert(END,(name,name,'Both',CompareString))
 
         Dict = {}
@@ -488,7 +542,8 @@ if __name__ == '__main__':
         for s in new1:
             if (Vars.ShowLeftCheckVar.get()) and Vars.FilterEntry.get().upper() in s.upper():
                 if os.path.isdir(os.path.join(Vars.LeftPathEntry.get(), s)):
-                    Vars.DataBox.insert(END,(s,'','Left','Directory'))
+                    if Vars.ShowDirectoriesCheckVar.get():
+                        Vars.DataBox.insert(END,(s,'','Left','Directory'))
                 else:
                     Vars.DataBox.insert(END,(s,'','Left','File'))
             if not s.upper() in Dict:
@@ -500,7 +555,8 @@ if __name__ == '__main__':
         for s in new2:
             if (Vars.ShowRightCheckVar.get()) and Vars.FilterEntry.get().upper() in s.upper():
                 if os.path.isdir(os.path.join(Vars.RightPathEntry.get(), s)):
-                    Vars.DataBox.insert(END,('',s,'Right','Directory'))
+                    if Vars.ShowDirectoriesCheckVar.get():
+                        Vars.DataBox.insert(END,('',s,'Right','Directory'))
                 else:
                     Vars.DataBox.insert(END,('',s,'Right','File'))
             if not s.upper() in Dict:
@@ -508,7 +564,7 @@ if __name__ == '__main__':
             else:
                 Dict[s.upper()] += 1
 
-        if (Vars.ShowDiffCheckVar.get() == TRUE):
+        if Vars.ShowDiffCheckVar.get():
             for key, value in Dict.items():
                 for s in new1:
                     if s.upper() == key and value > 0 and Vars.FilterEntry.get().upper() in s.upper():
@@ -518,6 +574,7 @@ if __name__ == '__main__':
                     if s.upper() == key and value > 0 and Vars.FilterEntry.get().upper() in s.upper():
                         Vars.DataBox.insert(END,('',s,'Diff','Diff'))
                         Logger('Show diff new2: ' + s, getframeinfo(currentframe()))
+
 
         Vars.StatusVar.set('Compare complete. Items: ' + str(Vars.DataBox.size()-1))
         Vars.ShowLineNumberVar.set('No line selected of ' + str(Vars.DataBox.size()-1))
@@ -549,7 +606,7 @@ if __name__ == '__main__':
         try:
             sha1.update(f.read())
         except:
-            Logger('whoops '  + str(exception), getframeinfo(currentframe()),False)
+            Logger('whoops '  + str(exception), getframeinfo(currentframe()))
         finally:
             f.close()
         return sha1.hexdigest()
@@ -576,12 +633,7 @@ if __name__ == '__main__':
                 if Vars.AutoRefreshCheckVar.get() and not IsBatch:
                     FetchData()
             return
-        '''
-        if not os.path.isdir(src):
-            Logger('src: ' + src + ' is not a file', getframeinfo(currentframe()))
-            tkinter.messagebox.showerror(Trace, src + ' is not a file')
-            return
-        '''
+
         if Vars.ConfirmCopyCheckVar.get():
             if not tkinter.messagebox.askyesno(Trace, 'Copy\n' + src + '\nto\n' + dst + '?'):
                 Logger('Copy aborted by user\n' + src + '\nto\n' + dst, getframeinfo(currentframe()))
@@ -620,8 +672,8 @@ if __name__ == '__main__':
         Logger('DeleteAFile  left:' + file1 + '<< right:' + file2 +'<< ' + Message, getframeinfo(currentframe()))
         Main.update_idletasks()
         if Vars.ConfirmDeleteCheckVar.get():
-            if tkinter.messagebox.askyesno(Message + ' file(s)?', file1 + '\n' + file2) == False:
-                Logger(Message + ' aborted', file1 + '  ' + file2, getframeinfo(currentframe()), True)
+            if not tkinter.messagebox.askyesno(Message + ' file(s)?', file1 + '\n' + file2):
+                Logger(Message + ' aborted', file1 + '  ' + file2, getframeinfo(currentframe()), ShowInStatus=True)
                 return
 
         if Vars.RecycleCheckVar.get() == 0:
@@ -636,13 +688,13 @@ if __name__ == '__main__':
                 RemoveAFile(file1, Trash = True)
                 if os.path.exists(file1): #This tests to see if the operation worked
                     if tkinter.messagebox.showerror(Message + ' failed',file1):
-                        Logger(Message + ' failed ' + file1, getframeinfo(currentframe()), True)
+                        Logger(Message + ' failed ' + file1, getframeinfo(currentframe()), ShowInStatus=True)
             if os.path.exists(file2):
                 #send2trash(file2)
                 RemoveAFile(file2, Trash = True)
                 if os.path.exists(file2): #This tests to see if the operation worked
                     if tkinter.messagebox.showerror(Message + ' failed',file2):
-                        Logger(Message + ' failed ' + file2, getframeinfo(currentframe()),True)
+                        Logger(Message + ' failed ' + file2, getframeinfo(currentframe()), ShowInStatus=True)
 
         if Vars.AutoRefreshCheckVar.get(): FetchData()
         else: Vars.StatusVar.set('Refresh needed')
@@ -798,7 +850,7 @@ if __name__ == '__main__':
 #------------------------------
 #TODO 'This does not work for linux'
     def LocateFile(path):
-        Logger(path, getframeinfo(currentframe()),ShowInStatus = False, PrintToCommandLine = True)
+        Logger(path, getframeinfo(currentframe()), PrintToCommandLine = True)
         subprocess.call([Vars.SystemLocaterVar.get(),path])
 
     def LocateRight():
@@ -815,8 +867,7 @@ if __name__ == '__main__':
 
 #This works when both exist
     def DiffBoth():
-        Logger('DiffBoth', getframeinfo(currentframe()),False)
-
+        Logger('DiffBoth', getframeinfo(currentframe()))
         Left = os.path.join(Vars.LeftPathEntry.get(), Vars.FileLeftNameVar.get())
         Right = os.path.join(Vars.RightPathEntry.get(), Vars.FileRightNameVar.get())
         StartFile(Vars.SystemDifferVar.get(), Left, Right)
@@ -1047,7 +1098,7 @@ if __name__ == '__main__':
             Vars.FileInfoTopLevelVar.geometry("%dx%d+%d+%d" % (FileInfoTopLevelX, FileInfoTopLevelY, x, y))
             Vars.FileInfoTopLevelVar.resizable(1,1)
 
-            Logger('ShowFileInfoForm', getframeinfo(currentframe()), ShowInStatus = True)
+            Logger('ShowFileInfoForm', getframeinfo(currentframe()), ShowInStatus=True)
             Logger('FileInfo', getframeinfo(currentframe()))
             if Vars.DataBox.size() < 0:
                 tkinter.messagebox.showerror('Data box error', 'Databox is empty')
@@ -1180,12 +1231,12 @@ if __name__ == '__main__':
         else:
             Vars.ProjectFileNameVar.set(tkinter.filedialog.askopenfilename(
             defaultextension = Vars.ProjectFileExtensionVar.get(),
-            filetypes = [('Project file','PyDiff*.prj?'),('All files','*.*')],
+            filetypes = [('Project file','PyDiff*.' + Vars.ProjectFileExtensionVar.get()),('All files','*.*')],
             initialdir = os.path.dirname(Vars.AuxDirectoryVar.get()),
             initialfile = 'PyDiffTk.' + Vars.ProjectFileExtensionVar.get(),
             title = 'Load a PyDiffTk project file',
                 parent = Main))
-        Logger('Project Load ' + Vars.ProjectFileNameVar.get(), getframeinfo(currentframe()), True)
+        Logger('Project Load ' + Vars.ProjectFileNameVar.get(), getframeinfo(currentframe()), ShowInStatus=True)
 
         ProjectEntry.delete(0,END)
         ProjectEntry.insert(0, Vars.ProjectFileNameVar.get())
@@ -1198,8 +1249,9 @@ if __name__ == '__main__':
 
         lines = f.readlines()
         f.close()
+        print('PyDiffTk.py project file ' + sys.platform)
         try:
-            if not 'PyDiffTk.py project file' in lines[0]:
+            if not 'PyDiffTk.py project file ' + sys.platform in lines[0]:
                 tkinter.messagebox.showerror('Project file error', 'Not a valid project file.\nproject file' + '\n' + lines[0] )
                 Logger('PyDiffTk.py project file  ' + lines[0].strip(), getframeinfo(currentframe()))
                 return
@@ -1211,28 +1263,28 @@ if __name__ == '__main__':
         del lines[0] # remove the first line so it won't be added to the comments list
         #Clear any widgets that need to be
         Vars.CommentsListVar = []
-
         for line in lines:
-            if '~' in line:
+            if '~' in line and line[0] != '#':
                 t = line.split('~')
                 if 'False' in t[1]:
                     t[1] = 0
                 elif 'True' in t[1]:
                     t[1] = 1
-
                 if 'LeftPathEntry' in line:
                     x = os.path.normpath(t[1].strip())
                     UpdatePathEntry('Left',x)
-
                 if 'RightPathEntry' in line:
                     x = os.path.normpath(t[1].strip())
                     UpdatePathEntry('Right',x)
                 if 'FilterEntry' in line:
                     Vars.FilterEntry.delete(0,END)
                     Vars.FilterEntry.insert(0,t[1].strip())
-                if 'SearchEntry' in line:
-                    Vars.SearchEntry.delete(0,END)
-                    Vars.SearchEntry.insert(0,t[1].strip())
+                if 'SearchEntryBatch' in line:
+                    Vars.SearchEntryBatch.delete(0,END)
+                    Vars.SearchEntryBatch.insert(0,t[1].strip())
+                if 'SearchEntryMain' in line:
+                    Vars.SearchEntryMain.delete(0,END)
+                    Vars.SearchEntryMain.insert(0,t[1].strip())
                 # TODO search
                 if 'LeftSearchVar' in line:
                     Vars.LeftSearchVar.set(int(t[1]))
@@ -1252,7 +1304,6 @@ if __name__ == '__main__':
                     Vars.SystemRenamerVar.set(t[1].strip())
                 if 'SystemLocaterVar' in line and len(t[1]) > 1:
                     Vars.SystemLocaterVar.set(t[1].strip())
-
                 if 'ShowLeftCheckVar' in line:
                     Vars.ShowLeftCheckVar.set(int(t[1]))
                 if 'ShowRightCheckVar' in line:
@@ -1261,6 +1312,8 @@ if __name__ == '__main__':
                     Vars.ShowBothCheckVar.set(int(t[1]))
                 if 'ShowDiffCheckVar' in line:
                     Vars.ShowDiffCheckVar.set(int(t[1]))
+                if 'ShowDirectoriesCheckVar' in line:
+                    Vars.ShowDirectoriesCheckVar.set(int(t[1]))
                 if 'AutoRefreshCheckVar' in line:
                     Vars.AutoRefreshCheckVar.set(int(t[1]))
                 if 'ConfirmCopyCheckVar' in line:
@@ -1279,23 +1332,22 @@ if __name__ == '__main__':
                     Vars.FileTimeTriggerScaleVar.set(int(t[1]))
                 if 'TriggerNumberOfFilesVar~' in line:
                     Vars.TriggerNumberOfFilesVar.set(int(t[1]))
-                else:
-                    #The following are assummed to be comments and are stored as such
-                    #All lines with # in the first column are comments
-                    #All line that do not contain ~ are comments
-                    Vars.CommentsListVar.append(line)
-        Vars.DoNotAskNumberOfFilesVar.set(False)
+            else:
+                #All lines with # in the first column are comments
+                #All line that do not contain ~ are comments
+                Vars.CommentsListVar.append(line)
 
-        Logger('Project opened: ' + Vars.ProjectFileNameVar.get(), getframeinfo(currentframe()), True)
+        Logger('Project opened: ' + Vars.ProjectFileNameVar.get(), getframeinfo(currentframe()), ShowInStatus=True)
         if Vars.AutoRefreshCheckVar.get(): FetchData()
 #------------------------------
+#Saves a project file
     def ProjectSave():
-        print('ProjectSave')
-        Logger('ProjectSave ' + Vars.ProjectFileNameVar.get(), getframeinfo(currentframe()), True)
+        Logger('ProjectSave ' + Vars.ProjectFileNameVar.get(), getframeinfo(currentframe()), ShowInStatus=True)
 
         Vars.ProjectFileNameVar.set(tkinter.filedialog.asksaveasfilename(
             defaultextension = Vars.ProjectFileExtensionVar.get(),
-            filetypes = [('Project file','PyDiff*.prj?'),('All files','*.*')],
+            filetypes = [('Project file','PyDiff*.' + Vars.ProjectFileExtensionVar.get()),
+            ('All files','*.*')],
             initialdir = os.path.dirname(Vars.AuxDirectoryVar.get()),
             initialfile = 'PyDiffTk.' + Vars.ProjectFileExtensionVar.get(),
             title = 'Save a PyDiffTk project file',
@@ -1307,19 +1359,21 @@ if __name__ == '__main__':
         try:
             f = open(Vars.ProjectFileNameVar.get(), 'w')
         except IOError:
-            tkinter.messagebox.showerror('Project file error', 'Requested file does not exist.\n>>' + Vars.ProjectFileNameVar.get() + '<<')
+            tkinter.messagebox.showerror('Project file error',
+            'Requested file does not exist.\n>>' + Vars.ProjectFileNameVar.get() + '<<')
             return
 
         if not Vars.ProjectFileNameVar.get():
             return
 
-        f.write('PyDiffTk.py project file\n')
+        f.write('PyDiffTk.py project file ' + sys.platform + '\n')
         for item in Vars.CommentsListVar:
             f.write(item)
         f.write('LeftPathEntry~' + Vars.LeftPathEntry.get().strip() + '\n')
         f.write('RightPathEntry~' + Vars.RightPathEntry.get().strip() + '\n')
         f.write('FilterEntry~' + Vars.FilterEntry.get().strip() + '\n')
-        f.write('SearchEntry~' + Vars.SearchEntry.get().strip() + '\n')
+        f.write('SearchEntryMain~' + Vars.SearchEntryMain.get().strip() + '\n')
+        f.write('SearchEntryBatch~' + Vars.SearchEntryBatch.get().strip() + '\n')
         f.write('LeftSearchVar~' + str(Vars.LeftSearchVar.get()) + '\n')
         f.write('RightSearchVar~' + str(Vars.RightSearchVar.get()) + '\n')
         f.write('StatusSearchVar~' + str(Vars.StatusSearchVar.get()) + '\n')
@@ -1329,11 +1383,11 @@ if __name__ == '__main__':
         f.write('SystemLocaterVar~' + Vars.SystemLocaterVar.get().strip() + '\n')
         f.write('SystemDifferVar~' + Vars.SystemDifferVar.get().strip() + '\n')
         f.write('SystemRenamerVar~' + Vars.SystemRenamerVar.get().strip() + '\n')
-
         f.write('ShowRightCheckVar~' + str(Vars.ShowRightCheckVar.get()) + '\n')
         f.write('ShowLeftCheckVar~' + str(Vars.ShowLeftCheckVar.get()) + '\n')
         f.write('ShowBothCheckVar~' + str(Vars.ShowBothCheckVar.get()) + '\n')
         f.write('ShowDiffCheckVar~' + str(Vars.ShowDiffCheckVar.get()) + '\n')
+        f.write('ShowDirectoriesCheckVar~' + str(Vars.ShowDirectoriesCheckVar.get()) + '\n')
         f.write('AutoRefreshCheckVar~' + str(Vars.AutoRefreshCheckVar.get()) + '\n')
         f.write('ConfirmCopyCheckVar~' + str(Vars.ConfirmCopyCheckVar.get()) + '\n')
         f.write('ConfirmRenameCheckVar~' + str(Vars.ConfirmRenameCheckVar.get()) + '\n')
@@ -1345,70 +1399,128 @@ if __name__ == '__main__':
         f.write('TriggerNumberOfFilesVar~' + str(Vars.TriggerNumberOfFilesVar.get()) + '\n')
 
         f.close()
-        Logger('Project saved: ' + Vars.ProjectFileNameVar.get(), getframeinfo(currentframe()), True)
+        Logger('Project saved: ' + Vars.ProjectFileNameVar.get(), getframeinfo(currentframe()), ShowInStatus=True)
 #------------------------------
+#Edit a project file
     def ProjectEdit():
         Logger('Project edit: ' + ProjectEntry.get(), getframeinfo(currentframe()))
         ShowEditFile(ProjectEntry.get())
+#------------------------------
+#Show selected row in a message box
+    def ShowRow():
+        Current= str(Vars.DataBox.curselection())
+        Current = re.sub('[(),\']','',Current)
+
+        try:
+            ShowRowTopLevel = Toplevel()
+            ShowRowTopLevel.title('Show row')
+            ShowRowTopLevel.wm_transient(Main)
+            ShowRowTopLevelX = 250
+            ShowRowTopLevelY = 120
+            Mainsize = Main.geometry().split('+')
+            x = int(Mainsize[1]) + (ShowRowTopLevelX / 2)
+            y = int(Mainsize[2]) + (ShowRowTopLevelY / 2)
+            ShowRowTopLevel.geometry("%dx%d+%d+%d" % (ShowRowTopLevelX, ShowRowTopLevelY, x, y))
+            ShowRowTopLevel.resizable(1,0)
+
+            Label(ShowRowTopLevel, text='Left:  ' + Vars.DataBox.get(Current)[0],
+                relief=GROOVE).pack(expand=FALSE, fill=X)
+            Label(ShowRowTopLevel, text='Right:  ' + Vars.DataBox.get(Current)[1],
+                relief=GROOVE).pack(expand=FALSE, fill=X)
+            Label(ShowRowTopLevel, text='Status:  ' + Vars.DataBox.get(Current)[2],
+                relief=GROOVE).pack(expand=FALSE, fill=X)
+            Label(ShowRowTopLevel, text='More:  ' + Vars.DataBox.get(Current)[3],
+                relief=GROOVE).pack(expand=FALSE, fill=X)
+            Button(ShowRowTopLevel, text='Close', command=lambda : ShowRowTopLevel.destroy()).pack()
+        except:
+            pass
 
 #------------------------------
     class Batch:
         AbortVar = BooleanVar()
         AbortVar.set(False)
 
-        SplitModeVar = BooleanVar()
-        SplitModeVar.set(False)
-
         def ShowBatchForm(self):
             Vars.BatchTopLevelVar.deiconify()
             Vars.BatchTopLevelVar.wm_transient(Main)
             BatchTopLevelX = 530
-            BatchTopLevelY = 160
+            BatchTopLevelY = 250
             Mainsize = Main.geometry().split('+')
             x = int(Mainsize[1]) + (BatchTopLevelX / 2)
             y = int(Mainsize[2]) + (BatchTopLevelY / 2)
 
             Vars.BatchTopLevelVar.geometry("%dx%d+%d+%d" % (BatchTopLevelX, BatchTopLevelY, x, y))
-            Vars.BatchTopLevelVar.resizable(1,1)
-            Logger('ShowBatchForm', getframeinfo(currentframe()), ShowInStatus = True)
+            Vars.BatchTopLevelVar.resizable(1,0)
+            Logger('ShowBatchForm', getframeinfo(currentframe()), ShowInStatus=True)
 
         def BuildBatchForm(self):
             Vars.BatchTopLevelVar = Toplevel()
             Vars.BatchTopLevelVar.title('Batch')
             Vars.BatchTopLevelVar.withdraw()
             Vars.BatchTopLevelVar.wm_transient(Main)
+
+            #Get currently selected line
             def GetCurrentSelection():
                 Current= str(Vars.DataBox.curselection())
                 Vars.ShowLineNumberVar.set(Current)
-                Vars.ShowLineNumberVar.set(str(Vars.DataBox.curselection()) + ' of ' + str(Vars.DataBox.size()-1))
+                Vars.ShowLineNumberVar.set(str(Vars.DataBox.curselection()) +
+                 ' of ' + str(Vars.DataBox.size()-1))
                 Current = re.sub('[(),\']','',Current)
+                if ' ' in Current: Current = '-1'
                 return Current
 
+            #Get currently selected line information and total line count
+            def SelectBlockRows():
+                StartRow = re.sub('[(),\']','',StartRowEntry.get())
+                StopRow = re.sub('[(),\']','',StopRowEntry.get())
+                print('start>'+StartRow+'<', 'stop>'+StopRow+'<')
+                Vars.DataBox.selection_clear(0,199999)
+                if StartRow.isdigit() and StopRow.isdigit():
+                    for Row in range(int(StartRow), int(StopRow)+1):
+                        Vars.DataBox.selection_set(Row)
+                        Vars.DataBox.see(Row)
+                Update()
+                Vars.BatchNumberItemsVar.set(Vars.ShowLineNumberVar.get())
+
+            #Lists displaylist to command line
+            def TestTheData():
+                Logger(str(Vars.SelectedListVar), getframeinfo(currentframe()))
+                print(Vars.SelectedListVar)
+                Vars.DataBox.selection_clear(0,199999)
+                for x in Vars.SelectedListVar:
+                    print(x, Vars.DataBox.get(x))
+                    Vars.DataBox.selection_set(x)
+                    Vars.DataBox.see(x)
+
+
+            #Fetch the first line to perform the batch action on
             def GetLineNumberStart():
-                GetTotalLines()
                 StartRowEntry.delete(0, END)
                 tmp = GetCurrentSelection()
+                print(MyTrace(getframeinfo(currentframe())), tmp)
                 if len(tmp) > 0:
                     StartRowEntry.insert(0, tmp)
                 else:
                     StartRowEntry.insert(0, 0)
+                SelectBlockRows()
 
+            #Fetch the last line to perform the batch action on
             def GetLineNumberStop():
-                GetTotalLines()
                 StopRowEntry.delete(0, END)
                 tmp = GetCurrentSelection()
+                print(MyTrace(getframeinfo(currentframe())), tmp)
                 if len(tmp) > 0:
                     StopRowEntry.insert(0, tmp)
                 else:
                     StopRowEntry.insert(0, str(Vars.DataBox.size()-1))
+                SelectBlockRows()
 
             StartRow = '-1'
             StopRow = '-1'
             BatchStatusVar = StringVar()
             BatchWorkingCount = 0
             BatchStatusVar.set('This is batch mode')
-            BatchNumberItemsVar = StringVar()
-            BatchNumberItemsVar.set(str(Vars.DataBox.size()-1))
+
             def VerifyInput(trace):
                 StartRow = str(StartRowEntry.get())
                 StopRow = str(StopRowEntry.get())
@@ -1418,9 +1530,9 @@ if __name__ == '__main__':
                     TestMessage = 'Start and stop row must be positive interger values'
                     BatchStatusVar.set(trace + '\n' + TestMessage)
                     tkinter.messagebox.showerror('Bad entry value',trace + '\n' + TestMessage)
-                    SplashScreen('Batch copy is closing ' + Trace, False)
+                    SplashScreen('Batch copy is closing', False)
                     return 1
-                Logger('Start row:' + str(StartRow) + '  Number of items:' + str(Vars.DataBox.size()-1), getframeinfo(currentframe()),False)
+                Logger('Start row:' + str(StartRow) + '  Number of items:' + str(Vars.DataBox.size()-1), getframeinfo(currentframe()))
                 if int(StartRow) < 0:
                     TestMessage += '\nStart must be 0 or more\n'
                 if int(StartRow) > int(Vars.DataBox.size()-1):
@@ -1439,14 +1551,14 @@ if __name__ == '__main__':
             def BatchRefresh():
                 GetLineNumberStart()
                 GetLineNumberStop()
-                BatchNumberItemsVar.set(str(Vars.DataBox.size()-1))
+                Vars.BatchNumberItemsVar.set(str(Vars.DataBox.size()-1))
 
-            def GetWorkingList(trace): #This gets the selected items and puts them in WorkList
-                WorkList = []
+            def GetFilePathList(trace): #This gets the selected items and puts them in FilePathList
+                FilePathList = [] #Vars.SelectedListVar
                 if VerifyInput(trace) != 0: return
                 Vars.DataBox.selection_clear(0,199999)
                 try:
-                    Vars.DataBox.selection_set(int(StartRowEntry.get()),int(StopRowEntry.get()))
+                    Vars.DataBox.selection_set(int(StartRowEntry.get()), int(StopRowEntry.get()))
                 except: return
 
                 Vars.ShowLineNumberVar.set(str(Vars.DataBox.curselection()) + ' of ' + str(Vars.DataBox.size()-1))
@@ -1464,8 +1576,9 @@ if __name__ == '__main__':
                         right = Vars.RightPathEntry.get() + os.sep
                     else:
                         right = os.path.join(Vars.RightPathEntry.get(), Vars.FileRightNameVar.get())
-                    WorkList.append(left + '~' + right)
-                return WorkList
+                    FilePathList.append(left + '~' + right)
+                print('kkkkkkkkk',FilePathList,MyTrace(currentframe()))
+                return FilePathList
 
             #The batch rename functions call external renamer programs
             #Linux: /usr/bin/pyrenamer
@@ -1490,10 +1603,11 @@ if __name__ == '__main__':
             def BatchDeleteOrTrash(Trace):
                 SplashScreen('Batch Delete is running:' + Trace, True)
                 self.AbortVar.set(False)
-                BatchDeleteList = GetWorkingList('Batch delete')
+                BatchDeleteList = GetFilePathList('Batch delete')
                 if BatchDeleteList == None: return
                 Logger('Batch delete ' + Trace, getframeinfo(currentframe()))
                 BatchDeleteCount = 0
+
                 for RowStr in BatchDeleteList:
                     Main.update_idletasks()
                     if self.AbortVar.get(): break
@@ -1502,21 +1616,21 @@ if __name__ == '__main__':
                     Main.update_idletasks()
                     RowStrSplit = RowStr.split('~')
                     if Trace == 'left':
-                        Logger('Delete left. ' + RowStrSplit[0], getframeinfo(currentframe()), True)
+                        Logger('Delete left. ' + RowStrSplit[0], getframeinfo(currentframe()), ShowInStatus=True)
                         if os.path.exists(RowStrSplit[0]) and os.path.isfile(RowStrSplit[0]):
                             if Vars.RecycleCheckVar.get() == 0:
                                 RemoveAFile(RowStrSplit[0], Trash = False)
                             else:
                                 RemoveAFile(RowStrSplit[0], Trash = True)
                     elif Trace == 'right': #Delete right
-                        Logger('Delete right. ' + RowStrSplit[0], getframeinfo(currentframe()), True)
+                        Logger('Delete right. ' + RowStrSplit[0], getframeinfo(currentframe()), ShowInStatus=True)
                         if os.path.exists(RowStrSplit[1]) and os.path.isfile(RowStrSplit[1]):
                             if Vars.RecycleCheckVar.get() == 0:
                                 RemoveAFile(RowStrSplit[1], Trash = False)
                             else:
                                 RemoveAFile(RowStrSplit[1], Trash = True)
                     elif Trace == 'auto': #Delete auto deletes whatever exists
-                        Logger('Delete auto. ' + RowStrSplit[0], getframeinfo(currentframe()), True)
+                        Logger('Delete auto. ' + RowStrSplit[0], getframeinfo(currentframe()), ShowInStatus=True)
                         if os.path.exists(RowStrSplit[0]) and os.path.isfile(RowStrSplit[0]):
                             if Vars.RecycleCheckVar.get() == 0:
                                 RemoveAFile(RowStrSplit[0], Trash = False)
@@ -1538,11 +1652,12 @@ if __name__ == '__main__':
                 SplashScreen('Batch Delete is closing: ' + Trace, False)
                 if Vars.AutoRefreshCheckVar.get():
                     FetchData()
-                    BatchNumberItemsVar.set(str(Vars.DataBox.size()-1))
+                    update()
+                    Vars.BatchNumberItemsVar.set(str(Vars.DataBox.size()-1))
             #---------------------------------
             def BatchCopy(Trace):
                 self.AbortVar.set(False)
-                BatchCopyList = GetWorkingList('Batch copy')
+                BatchCopyList = GetFilePathList('Batch copy')
                 if BatchCopyList == None: return
                 SplashScreen('Batch copy is running ' + Trace, True)
 
@@ -1582,111 +1697,160 @@ if __name__ == '__main__':
                 SplashScreen('Batch copy is closing ' + Trace, False)
 
             #---------------------------------
-            Logger('Batch', getframeinfo(currentframe()),True)
+            Logger('Batch', getframeinfo(currentframe()), ShowInStatus=True)
             Vars.BatchTopLevelVar = Toplevel()
             Vars.BatchTopLevelVar.title('Batch')
 
-            BatchFrame1 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN,bd=1)
+            #Status frame and abort
+            BatchFrame1 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN, bd=1)
             BatchFrame1.pack(side=TOP, expand=FALSE, fill=X)
 
-            BatchFrame2 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN,bd=1)
+            #Block mode
+            BatchFrame2 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN, bd=1)
             BatchFrame2.pack(side=TOP, expand=FALSE, fill=X)
-            BatchFrame3 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN,bd=1)
-            BatchFrame3.pack(side=TOP, fill=X)
 
-            BatchFrame3a = Frame(BatchFrame3, relief=SUNKEN, bd=1)
-            BatchFrame3a.pack(side=LEFT, expand=TRUE, fill=Y)
 
-            BatchFrame3b = Frame(BatchFrame3, relief=SUNKEN, bd=1)
-            BatchFrame3b.pack(side=LEFT, expand=TRUE, fill=Y)
+            #This frame is for search
+            BatchFrame3 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN, bd=1)
+            BatchFrame3.pack(side=TOP, expand=FALSE, fill=X)
 
-            BatchFrame3c = Frame(BatchFrame3, relief=SUNKEN, bd=1)
-            BatchFrame3c.pack(side=LEFT, expand=TRUE, fill=Y)
-
+            #This frame is for add/remove/clear buttons
             BatchFrame4 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN, bd=1)
-            BatchFrame4.pack(side=TOP, expand=TRUE, fill=X)
+            BatchFrame4.pack(side=TOP, expand=FALSE, fill=X)
 
-            StartRowButton = Button(BatchFrame1, text='Start row:', command=GetLineNumberStart)
+            #The following frames are used for the action buttons
+            BatchFrame5 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN, bd=1)
+            BatchFrame5.pack(side=TOP, fill=X)
+
+            BatchFrame5a = Frame(BatchFrame5, relief=SUNKEN, bd=1)
+            BatchFrame5a.pack(side=LEFT, expand=TRUE, fill=Y)
+
+            BatchFrame5b = Frame(BatchFrame5, relief=SUNKEN, bd=1)
+            BatchFrame5b.pack(side=LEFT, expand=TRUE, fill=Y)
+
+            BatchFrame5c = Frame(BatchFrame5, relief=SUNKEN, bd=1)
+            BatchFrame5c.pack(side=LEFT, expand=TRUE, fill=Y)
+
+            #Display number of lines
+            BatchFrame6 = Frame(Vars.BatchTopLevelVar, relief=SUNKEN, bd=1)
+            BatchFrame6.pack(side=TOP, expand=TRUE, fill=X)
+
+            #---------------------------------
+            BatchStatus = Label(BatchFrame1,  textvariable=BatchStatusVar, relief=GROOVE)
+            BatchStatus.pack(fill=BOTH, expand=True,side=LEFT)
+            ToolTip(BatchStatus,'Displays batch status')
+
+            AbortCheck = Checkbutton(BatchFrame1, text='Abort', variable=self.AbortVar)
+            AbortCheck.pack(side=LEFT)
+            ToolTip(AbortCheck,'Abort batch operations')
+
+            #---------------------------------
+            #Block select controls
+            StartRowButton = Button(BatchFrame2, text='Start row:', command=GetLineNumberStart)
             StartRowButton.pack(side=LEFT)
             ToolTip(StartRowButton,'Fetch the first line to perform the batch action on')
-
-            StartRowEntry = Entry(BatchFrame1, width = 6)
+            StartRowEntry = Entry(BatchFrame2, width=6)
             StartRowEntry.pack(side=LEFT)
+            StartRowEntry.bind('<Return>', lambda x: SelectBlockRows())
+            StartRowEntry.bind('<Leave>', lambda x: SelectBlockRows())
             ToolTip(StartRowEntry,'Enter the first line to perform the batch action on')
 
-            StopRowButton = Button(BatchFrame1, text='Stop row:',  command=GetLineNumberStop)
+            StopRowButton = Button(BatchFrame2, text='Stop row:',  command=GetLineNumberStop)
             StopRowButton.pack(side=LEFT)
             ToolTip(StopRowButton,'Fetch the last line to perform the batch action on')
-            StopRowEntry = Entry(BatchFrame1, width = 6)
+            StopRowEntry = Entry(BatchFrame2, width=6)
             StopRowEntry.pack(side=LEFT)
+            StopRowEntry.bind('<Return>', lambda x: SelectBlockRows())
+            StopRowEntry.bind('<Leave>', lambda x: SelectBlockRows())
             ToolTip(StopRowEntry,'Enter the last line to perform the batch action on')
 
-            def GetTotalLines():
-                 BatchNumberItemsVar.set(str(Vars.DataBox.size()-1))
+            #BatchRefreshButton = Button(BatchFrame2, text='Select', command=SelectBlockRows, width=7)
+            #BatchRefreshButton.pack(side=LEFT)
+            #ToolTip(BatchRefreshButton,'Get currently selected line information and total line count')
 
-            BatchSelectedLine = Button(BatchFrame1, textvariable=BatchNumberItemsVar,
-               command=GetTotalLines, relief=GROOVE, width=5)
-            BatchSelectedLine.pack(side=LEFT)
-
-            Checkbutton(BatchFrame1, text='Abort', variable=self.AbortVar).pack(side=LEFT)
-            ToolTip(BatchSelectedLine,'Number of lines in data display')
-            BatchRefreshButton = Button(BatchFrame1, text='Refresh', command=BatchRefresh, width=6)
-            BatchRefreshButton.pack(side=LEFT)
-            ToolTip(BatchRefreshButton,'Get currently selected line information and total line count')
+            # The follow will test that the selected data is valid
+            BatchTestButton = Button(BatchFrame2, text='Test', command=TestTheData, width=7)
+            BatchTestButton.pack(side=RIGHT)
+            ToolTip(BatchTestButton,'Lists displaylist to command line')
 
             #---------------------------------
+            #Search BatchFrame3
+            Checkbutton(BatchFrame3, text='Left', variable=Vars.LeftSearchVar ).pack(side=LEFT)
+            Checkbutton(BatchFrame3, text='Right', variable=Vars.RightSearchVar).pack(side=LEFT)
+            Checkbutton(BatchFrame3, text='Status', variable=Vars.StatusSearchVar).pack(side=LEFT)
+            Checkbutton(BatchFrame3, text='More', variable=Vars.MoreSearchVar).pack(side=LEFT)
+            Checkbutton(BatchFrame3, text='Case', variable=Vars.CaseSearchVar).pack(side=LEFT)
 
-            RB1 = Radiobutton(BatchFrame2, text='Split', variable=self.SplitModeVar, value=0)
-            RB1.pack(side=LEFT)
-            ToolTip(RB1,'GGG')
-            RB2 = Radiobutton(BatchFrame2, text='Block', variable=self.SplitModeVar, value=1)
-            RB2.pack(side=LEFT)
-            ToolTip(RB2,'HHH')
+            SearchButton = Button(BatchFrame3, text='Search', width=8, command=lambda:SearchData('batch'))
+            SearchButton.pack(side=LEFT)
+            ToolTip(SearchButton,'Enter a Search string to find certain entries')
+            Vars.SearchEntryBatch = Entry(BatchFrame3)
+            Vars.SearchEntryBatch.bind('<Return>',lambda x: SearchData('batch'))
+            Vars.SearchEntryBatch.pack(side=LEFT, expand=TRUE, fill=X)
+            ToolTip(Vars.SearchEntryBatch,'Enter a Search string to find certain entries')
+            Vars.SearchEntryBatch.delete(0,END)
 
-            BatchStatus = Label(BatchFrame2,  textvariable=BatchStatusVar, relief=GROOVE)
-            BatchStatus.pack(fill=BOTH, expand=True,side=LEFT)
-            ToolTip(BatchStatus,'Displays batch status ')
+            #This frame is for add/remove/clear/show buttons
+            AddRowsButton = Button(BatchFrame4, text='Add row(s)', command=AddSelectedToList)
+            AddRowsButton.pack(side=LEFT)
+            ToolTip(AddRowsButton,'Add all selected rows to display list')
+
+            RemoveRowButton = Button(BatchFrame4, text='Remove row', command=RemoveARow)
+            RemoveRowButton.pack(side=LEFT)
+            ToolTip(RemoveRowButton,'Remove the selected row from display list')
+
+            ClearAllRowsButton = Button(BatchFrame4, text='Clear all rows', command=ClearSelectedList)
+            ClearAllRowsButton.pack(side=LEFT)
+            ToolTip(ClearAllRowsButton,'Remove all rows from display list')
+
+            ShowRowsButton = Button(BatchFrame4, text='Show rows', command=ShowSelectedList)
+            ShowRowsButton.pack(side=LEFT)
+            ToolTip(ShowRowsButton,'Show all selected rows')
 
             #---------------------------------
-
-            DeleteLeftButton = Button(BatchFrame3a, text='Delete left',state=NORMAL, width=20, command=lambda: BatchDeleteOrTrash('left'))
+            #Action buttons BatchFrame5
+            DeleteLeftButton = Button(BatchFrame5a, text='Delete left',state=NORMAL, width=20, command=lambda: BatchDeleteOrTrash('left'))
             DeleteLeftButton.pack(anchor='w')
             ToolTip(DeleteLeftButton,'Batch delete left')
 
-            DeleteRightButton = Button(BatchFrame3a, text='Delete right',state=NORMAL, width=20, command=lambda: BatchDeleteOrTrash('right'))
+            DeleteRightButton = Button(BatchFrame5a, text='Delete right',state=NORMAL, width=20, command=lambda: BatchDeleteOrTrash('right'))
             DeleteRightButton.pack(anchor='w')
             ToolTip(DeleteRightButton,'Batch delete right')
 
-            DeleteAutoButton = Button(BatchFrame3a, text='Delete auto',state=NORMAL, width=20,command=lambda: BatchDeleteOrTrash('auto'))
+            DeleteAutoButton = Button(BatchFrame5a, text='Delete auto',state=NORMAL, width=20,command=lambda: BatchDeleteOrTrash('auto'))
             DeleteAutoButton.pack(anchor='w')
             ToolTip(DeleteAutoButton,'Batch delete auto')
             #---------------------------------
-            CopyLeftButton = Button(BatchFrame3b, text='Copy left to right', state=NORMAL, width=20, command=lambda: BatchCopy('left'))
+            CopyLeftButton = Button(BatchFrame5b, text='Copy left to right', state=NORMAL, width=20, command=lambda: BatchCopy('left'))
             CopyLeftButton.pack(anchor='w')
             ToolTip(CopyLeftButton,'Batch copy left')
 
-            CopyRightButton = Button(BatchFrame3b, text='Copy right to left', state=NORMAL, width=20,command=lambda: BatchCopy('right'))
+            CopyRightButton = Button(BatchFrame5b, text='Copy right to left', state=NORMAL, width=20,command=lambda: BatchCopy('right'))
             CopyRightButton.pack(anchor='w')
             ToolTip(CopyRightButton,'Batch copy Right')
 
-            CopyAutoButton = Button(BatchFrame3b, text='Copy auto', state=NORMAL, width=20,command=lambda: BatchCopy('auto'))
+            CopyAutoButton = Button(BatchFrame5b, text='Copy auto', state=NORMAL, width=20,command=lambda: BatchCopy('auto'))
             CopyAutoButton.pack(anchor='w')
             ToolTip(CopyAutoButton,'Batch copy auto')
             #---------------------------------
-            RenameLeftButton = Button(BatchFrame3c, text='Rename left',state=NORMAL, width=20, command=BatchRenameLeft)
+            RenameLeftButton = Button(BatchFrame5c, text='Rename left',state=NORMAL, width=20, command=BatchRenameLeft)
             RenameLeftButton.pack(anchor='w')
             ToolTip(RenameLeftButton,'Batch rename left')
 
-            RenameRightButton = Button(BatchFrame3c, text='Rename right',state=NORMAL, width=20,
+            RenameRightButton = Button(BatchFrame5c, text='Rename right',state=NORMAL, width=20,
             command=BatchRenameRight)
             RenameRightButton.pack(anchor='w')
             ToolTip(RenameRightButton,'Batch rename right')
             #-------------------
+            BatchSelectedLine = Button(BatchFrame6, textvariable=Vars.BatchNumberItemsVar,
+               command=SelectBlockRows, relief=GROOVE)
+            BatchSelectedLine.pack(side=LEFT, expand=TRUE, fill=BOTH)
+            ToolTip(BatchSelectedLine,'Number of lines in data display')
 
             Vars.BatchTopLevelVar.withdraw()
 
             def BatchXButton():
-                Logger('Batch X button detected', getframeinfo(currentframe()), ShowInStatus = False, PrintToCommandLine = False)
+                Logger('Batch X button detected', getframeinfo(currentframe()))
                 Vars.BatchTopLevelVar.withdraw()
             Vars.BatchTopLevelVar.protocol('WM_DELETE_WINDOW', BatchXButton)
 
@@ -1708,10 +1872,10 @@ if __name__ == '__main__':
             Vars.OptionsTopLevelVar.resizable(1,0)
             Vars.OptionsTopLevelVar.wm_transient(Main)
 
-            Logger('ShowOptionsForm', getframeinfo(currentframe()), ShowInStatus = True)
+            Logger('ShowOptionsForm', getframeinfo(currentframe()), ShowInStatus=True)
 
         def BuildOptionsForm(self):
-            Logger('BuildOptionsForm', getframeinfo(currentframe()), ShowInStatus = True)
+            Logger('BuildOptionsForm', getframeinfo(currentframe()), ShowInStatus=True)
             Vars.OptionsTopLevelVar = Toplevel()
             Vars.OptionsTopLevelVar.title('Options')
             Vars.OptionsTopLevelVar.withdraw()
@@ -1774,11 +1938,11 @@ if __name__ == '__main__':
         help = ''
         for l in lines:
             help = help + l
-
         tkinter.messagebox.showinfo('Help', help)
 #------------------------------
-#Swap the left and right entry boxes
+#Swap the left and right entry boxes (other menu)
     def SwapLeftAndRight():
+        Logger('SwapLeftAndRight', getframeinfo(currentframe()))
         temp1 = Vars.LeftPathEntry.get()
         temp2 = Vars.RightPathEntry.get()
         Vars.LeftPathEntry.delete(0,END)
@@ -1786,7 +1950,15 @@ if __name__ == '__main__':
         Vars.RightPathEntry.delete(0,END)
         Vars.RightPathEntry.insert(0,temp1)
 #------------------------------
-
+#Show Disk Space
+    def DiskSpace():
+        DiskSpace = shutil.disk_usage('/')
+        tkinter.messagebox.showinfo('Disk space',
+            'Free: %f Gbytes' %(DiskSpace.free/1e9) +'\n'+
+            'Used: %f Gbytes' %(DiskSpace.used/1e9) +'\n'+
+            'Total: %f Gbytes' %(DiskSpace.total/1e9))
+        Logger('DiskSpace', getframeinfo(currentframe()))
+#------------------------------
 #HistoryTopLevelVar = None
 #   class Options:
 #   def ShowOptionsForm(self):
@@ -1794,7 +1966,7 @@ if __name__ == '__main__':
         HistoryVar = StringVar()
         def HistoryAdd(self, LeftPath, RightPath):
             Logger('HistoryAdd: ' + LeftPath + ' ' + RightPath, getframeinfo(currentframe()))
-            Vars.HistoryList.append(LeftPath + '~~' + RightPath)
+            Vars.HistoryListVar.append(LeftPath + '~~' + RightPath)
 
         def HistoryDone(self):
             HstStr = self.HistoryVar.get()
@@ -1809,7 +1981,7 @@ if __name__ == '__main__':
         def HistoryGoto(self):
             Main.update()
             Vars.HistoryTopLevelVar = Toplevel()
-            Vars.HistoryTopLevelVar.title('History. Items: ' + str(len(Vars.HistoryList)))
+            Vars.HistoryTopLevelVar.title('History. Items: ' + str(len(Vars.HistoryListVar)))
             self.HistoryVar.set("History list")
             HistoryTopLevelSizeX = 550
             HistoryTopLevelSizeY = 105
@@ -1823,10 +1995,10 @@ if __name__ == '__main__':
             Vars.HistoryTopLevelVar.wm_transient(Main)
 
             Button(Vars.HistoryTopLevelVar, text="History done", command=self.HistoryDone).pack()
-            OptionMenu(Vars.HistoryTopLevelVar, self.HistoryVar, *Vars.HistoryList).pack(side=TOP, expand=FALSE, fill=BOTH)
+            OptionMenu(Vars.HistoryTopLevelVar, self.HistoryVar, *Vars.HistoryListVar).pack(side=TOP, expand=FALSE, fill=BOTH)
 
-            print(getframeinfo(currentframe())[1],  Vars.HistoryList)
-            print(getframeinfo(currentframe())[1], len(Vars.HistoryList))
+            print(getframeinfo(currentframe())[1],  Vars.HistoryListVar)
+            print(getframeinfo(currentframe())[1], len(Vars.HistoryListVar))
             print(getframeinfo(currentframe())[1], self.HistoryVar.get())
 
 #------------------------------
@@ -1862,13 +2034,9 @@ if __name__ == '__main__':
              ('Right', 45),
              ('Status', 3),
              ('More',40)))
-    ToolTip(Vars.DataBox, text='This is where all of the data is displayed')
-    Vars.DataBox.pack(expand=TRUE, fill=BOTH)
 
-    #Now setup the control buttons
-    FetchDataButton = Button(ControlFrame2, text='Fetch data',command=FetchData)
-    FetchDataButton.pack(side=LEFT)
-    ToolTip(FetchDataButton, text='Fetch the data from the currently selected directories')
+    ToolTip(Vars.DataBox, text='This is where the data is displayed')
+    Vars.DataBox.pack(expand=TRUE, fill=BOTH)
 
     menubar = Menu(Main)
     Main['menu'] = menubar
@@ -1876,6 +2044,7 @@ if __name__ == '__main__':
     ProjectsMenu = Menu(menubar)
     OptionsMenu = Menu(menubar)
     OtherMenu = Menu(menubar)
+    HelpMenu = Menu(menubar)
 
     menubar.add_cascade(menu=DirectoriesSelectMenu, label='Directories')
     DirectoriesSelectMenu.add_command(label='Select both directories', command=lambda: FetchDirectories('Both'))
@@ -1907,6 +2076,7 @@ if __name__ == '__main__':
     OptionsMenu.add_checkbutton(label='Show diff', variable=Vars.ShowDiffCheckVar)
     OptionsMenu.add_checkbutton(label='Show left', variable=Vars.ShowLeftCheckVar)
     OptionsMenu.add_checkbutton(label='Show right', variable=Vars.ShowRightCheckVar)
+    OptionsMenu.add_checkbutton(label='Show directories', variable=Vars.ShowDirectoriesCheckVar)
 
     OptionsMenu.add_separator()
     OptionsInstance = Options()
@@ -1914,12 +2084,15 @@ if __name__ == '__main__':
 
     menubar.add_cascade(menu=OtherMenu, label='Other')
     OtherMenu.add_command(label='Swap left and right',command=SwapLeftAndRight)
+    OtherMenu.add_command(label='Show disk space',command=DiskSpace)
     OtherMenu.add_command(label='Show/Edit file', command=ShowEditFile)
     OtherMenu.add_command(label='Clear logs', command=ClearLogs)
     OtherMenu.add_command(label='Clear all', command=ClearAll)
-    OtherMenu.add_command(label='About', command=About)
-    OtherMenu.add_command(label='Help', command=Help)
-    OtherMenu.add_command(label='Quit', command=Quit)
+
+    menubar.add_cascade(menu=HelpMenu, label='Help')
+    HelpMenu.add_command(label='About', command=About)
+    HelpMenu.add_command(label='Help', command=Help)
+    HelpMenu.add_command(label='Quit', command=Quit)
 
     FileInfoInstance = FileInfo()
     FileInfoButton = Button(ControlFrame2, text='File info',command=FileInfoInstance.ShowFileInfo)
@@ -1936,9 +2109,9 @@ if __name__ == '__main__':
     Vars.StatusVar.set('Status: Program started')
     ToolTip(Statuslabel, text='Show the status')
 
-    ShowLineNumberVar = Label(ControlFrame2, textvariable=Vars.ShowLineNumberVar, relief=GROOVE)
-    ShowLineNumberVar.pack(side=LEFT, expand=TRUE, fill=X)
-    ToolTip(ShowLineNumberVar, text='Show line numbers label\nAll values are zero based')
+    ShowLineNumber = Label(ControlFrame2, textvariable=Vars.ShowLineNumberVar, relief=GROOVE)
+    ShowLineNumber.pack(side=LEFT, expand=TRUE, fill=X)
+    ToolTip(ShowLineNumber, text='Show line numbers\nAll values are zero based')
 
     def BothX():
         if Vars.AutoRefreshCheckVar.get(): FetchData()
@@ -1983,30 +2156,40 @@ if __name__ == '__main__':
     ProjectEntry.delete(0,END)
     ProjectEntry.insert(0,'****************')
 
-    SearchFilterFrame = Frame(ControlFrame1, relief=SUNKEN, bd=2)
-    SearchFilterFrame.pack(side=TOP,  fill=X)
-    SearchOptionsFrame = Frame(SearchFilterFrame, relief=SUNKEN, bd=2)
-    SearchOptionsFrame.pack(side=LEFT)
-    Checkbutton(SearchOptionsFrame, text='Left', variable=Vars.LeftSearchVar ).pack(side=LEFT)
-    Checkbutton(SearchOptionsFrame, text='Right', variable=Vars.RightSearchVar).pack(side=LEFT)
-    Checkbutton(SearchOptionsFrame, text='Status', variable=Vars.StatusSearchVar).pack(side=LEFT)
-    Checkbutton(SearchOptionsFrame, text='More', variable=Vars.MoreSearchVar).pack(side=LEFT)
-    Checkbutton(SearchOptionsFrame, text='Case', variable=Vars.CaseSearchVar).pack(side=LEFT)
-    SearchButton = Button(SearchFilterFrame, text='Search', width=8, command=SearchData)
-    SearchButton.pack(side=LEFT)
-    ToolTip(SearchButton,'Enter a Search string to find certain entries')
-    Vars.SearchEntry = Entry(SearchFilterFrame)
-    Vars.SearchEntry.pack(side=LEFT, expand=TRUE, fill=X)
-    ToolTip(Vars.SearchEntry,'Enter a Search string to find certain entries')
-    Vars.SearchEntry.delete(0,END)
-
-    FilterLabel = Label(SearchFilterFrame, text='Filter', width=8)
-    FilterLabel.pack(side=LEFT)
-    ToolTip(FilterLabel,'Enter a filter string to display only certain entries')
-    Vars.FilterEntry = Entry(SearchFilterFrame)
-    Vars.FilterEntry.pack(side=LEFT, expand=TRUE, fill=X)
+#---------
+    FilterFrame = Frame(ControlFrame1, relief=SUNKEN, bd=2)
+    FilterFrame.pack(side=LEFT, fill=X)
+    FetchDataButton = Button(FilterFrame, text='Fetch data', width=12, command=FetchData)
+    FetchDataButton.pack(side=LEFT)
+    ToolTip(FetchDataButton,'Fetch data')
+    Vars.FilterEntry = Entry(FilterFrame)
+    Vars.FilterEntry.pack(side=LEFT)
     ToolTip(Vars.FilterEntry,'Enter a filter string to display only certain entries')
     Vars.FilterEntry.delete(0,END)
+
+    Checkbutton(FilterFrame, text='Both', variable=Vars.ShowBothCheckVar).pack(side=LEFT)
+    Checkbutton(FilterFrame, text='Diff', variable=Vars.ShowDiffCheckVar).pack(side=LEFT)
+    Checkbutton(FilterFrame, text='Left', variable=Vars.ShowLeftCheckVar).pack(side=LEFT)
+    Checkbutton(FilterFrame, text='Right', variable=Vars.ShowRightCheckVar).pack(side=LEFT)
+    Checkbutton(FilterFrame, text='Dir', variable=Vars.ShowDirectoriesCheckVar).pack(side=LEFT)
+#---------
+    SearchFrame = Frame(ControlFrame1, relief=SUNKEN, bd=2)
+    SearchFrame.pack(side=LEFT, fill=X)
+    SearchButton = Button(SearchFrame, text='Search', width=8, command=lambda:SearchData('main'))
+    SearchButton.pack(side=LEFT)
+    ToolTip(SearchButton,'Enter a Search string to find certain entries')
+    Vars.SearchEntryMain = Entry(SearchFrame)
+    Vars.SearchEntryMain.pack(side=LEFT)
+    Vars.SearchEntryMain.bind('<Return>', lambda x: SearchData('main'))
+    ToolTip(Vars.SearchEntryMain,'Enter a Search string to find certain entries')
+    Vars.SearchEntryMain.delete(0,END)
+
+    Checkbutton(SearchFrame, text='Left', variable=Vars.LeftSearchVar ).pack(side=LEFT)
+    Checkbutton(SearchFrame, text='Right', variable=Vars.RightSearchVar).pack(side=LEFT)
+    Checkbutton(SearchFrame, text='Status', variable=Vars.StatusSearchVar).pack(side=LEFT)
+    Checkbutton(SearchFrame, text='More', variable=Vars.MoreSearchVar).pack(side=LEFT)
+    Checkbutton(SearchFrame, text='Case', variable=Vars.CaseSearchVar).pack(side=LEFT)
+#---------
 
     Leftdirectorybutton = Button(ControlFrame3, width=20, text='Left directory path',command=lambda: FetchDirectories('Left'))
     Leftdirectorybutton.pack(side=LEFT)
@@ -2054,15 +2237,16 @@ if __name__ == '__main__':
     Main.bind('<F1>', lambda e:Help())
     Main.bind('<F2>', lambda e: About())
     Main.bind('<F3>', lambda e: ClearAll())
+    Main.bind('<F4>', lambda e: ShowRow())
     Main.bind('<F5>', lambda e: FetchData())
     Main.bind('<F7>', ShowSelectedList)
-    Main.bind('<F8>', AddToSelectedList)
+    Main.bind('<F8>', AddSelectedToList)
     Main.bind('<F9>', ClearSelectedList)
     Main.bind('<F12>', lambda e: FileInfoInstance.ShowFileInfo())
     Main.bind('<Control-q>', lambda e: Quit())
     Main.bind('<Control-Q>', lambda e: Quit())
-    #Main.bind('<ButtonRelease-1>', lambda e: Update())
-    Main.bind('<ButtonRelease-2>',lambda e: BatchInstance.ShowBatchForm()) #Middle button
-    Main.bind('<ButtonRelease-3>',lambda e: FileInfoInstance.ShowFileInfo()) #Right button
+    Main.bind('<ButtonRelease-1>', lambda e: Update())
+    Main.bind('<ButtonRelease-2>', lambda e: BatchInstance.ShowBatchForm()) #Middle button
+    Main.bind('<ButtonRelease-3>', lambda e: FileInfoInstance.ShowFileInfo()) #Right button
 
     Main.mainloop()

@@ -5,26 +5,29 @@ ButtonRelease-3, Show file form
 F1 Help
 F2 About
 F3 ClearAll
+F4 Display row data
 F5 FetchData
 F7 Display Selected list
 F8 Add to Selected list
 F9 Clear Selected list
 F12 Show file info
-
 Control-Q : Quit the program
 
 #TODO
 # Help
+# def MyMessageBox():
 # Fix allowing batch to remove directories
 # Remote access (google music, docs and ftp sites)
 # Check source and destinations for permissions and ownership
 # Delete permission does not work
 # Testing for success does not work
-# A search function
 # Confirm options for batch versus file
-# Make tool tip or something else to view entire list column
-# Column resize???
-# Locate function does not work for linux
 # Multi select and copy and move
-# Free space on disk
 # History functions
+# Save screen location
+# Sounds???
+# verify SystemEditorVar~gedit
+# verify SystemLocaterVar~konqueror
+# verify SystemDifferVar~meld
+# verify SystemRenamerVar~pyrename
+# Handle errors with above

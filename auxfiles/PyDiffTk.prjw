@@ -1,4 +1,4 @@
-PyDiffTk.py project file
+PyDiffTk.py project file win32
 #All lines with # in the first column are comments
 #All line that do not contain ~ are comments
 #Comments are always stored starting at line 2 in the project file
@@ -11,6 +11,7 @@ LeftSearchVar~1
 RightSearchVar~1
 StatusSearchVar~0
 MoreSearchVar~0
+CaseSearchVar~0
 SystemEditorVar~c:\windows\notepad.exe
 SystemLocaterVar~explorer.exe
 SystemDifferVar~C:\Program Files (x86)\WinMerge\WinMergeU.exe
@@ -24,7 +25,7 @@ ConfirmCopyCheckVar~1
 ConfirmRenameCheckVar~1
 ConfirmDeleteCheckVar~1
 RecycleCheckVar~1
-CheckSumAutoVar~1
-CheckSumTypeVar~3
-FileTimeTriggerScaleVar~224
-TriggerNumberOfFilesVar~101
+CheckSumAutoVar~0
+CheckSumTypeVar~1
+FileTimeTriggerScaleVar~100
+TriggerNumberOfFilesVar~100
