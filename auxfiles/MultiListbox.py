@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import tkinter
 from tkinter import *
 #------------------------------
 

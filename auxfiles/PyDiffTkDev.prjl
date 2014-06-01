@@ -3,8 +3,8 @@ PyDiffTk.py project file linux
 #All line that do not contain ~ are comments
 #Comments are always stored starting at line 2 in the project file
 
-LeftPathEntry~/home/doug/DougPython/DougPyDiff/tst01
-RightPathEntry~/home/doug/DougPython/DougPyDiff/tst02
+LeftPathEntry~/home/doug/DougPython
+RightPathEntry~/home/doug/dbkaynor@gmail.com/DougPython
 FilterEntry~
 SearchEntryMain~
 SearchEntryBatch~
@@ -19,10 +19,10 @@ SystemDifferVar~meld
 SystemRenamerVar~/usr/bin/pyrenamer
 ShowRightCheckVar~1
 ShowLeftCheckVar~1
-ShowBothCheckVar~0
-ShowDiffCheckVar~0
-ShowDirectoriesCheckVar~False
-AutoRefreshCheckVar~0
+ShowBothCheckVar~1
+ShowDiffCheckVar~1
+ShowDirectoriesCheckVar~1
+AutoRefreshCheckVar~True
 ConfirmCopyCheckVar~1
 ConfirmRenameCheckVar~1
 ConfirmDeleteCheckVar~1

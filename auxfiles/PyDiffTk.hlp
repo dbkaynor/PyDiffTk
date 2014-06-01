@@ -15,19 +15,13 @@ Control-Q : Quit the program
 
 #TODO
 # Help
-# def MyMessageBox():
-# Fix allowing batch to remove directories
-# Remote access (google music, docs and ftp sites)
+# Save screen location
+# move up one directory
+# Search versus select
 # Check source and destinations for permissions and ownership
 # Delete permission does not work
 # Testing for success does not work
 # Confirm options for batch versus file
-# Multi select and copy and move
-# History functions
-# Save screen location
-# Sounds???
-# verify SystemEditorVar~gedit
-# verify SystemLocaterVar~konqueror
-# verify SystemDifferVar~meld
-# verify SystemRenamerVar~pyrename
-# Handle errors with above
+# def MyMessageBox():
+# Fix allowing batch to remove directories
+# Remote access (google music, docs and ftp sites)
