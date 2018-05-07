@@ -1,6 +1,7 @@
 from tkinter import *
 #------------------------------
 class Vars:
+    ProgramVersionNumber = StringVar()
     OptionsTopLevelVar = None
     BatchTopLevelVar = None
     FileInfoTopLevelVar = None
@@ -45,6 +46,9 @@ class Vars:
     FilterEntry = None
     SearchEntryBatch = None
     SearchEntryMain = None
+    SearchRowStart = 0
+    SelectEntryBatch = None
+    SelectEntryMain = None
     StartRowEntry = None
     StopRowEntry = None
     LeftSearchVar = BooleanVar()
@@ -54,3 +58,4 @@ class Vars:
     CaseSearchVar = BooleanVar()
     BatchBlockMode = BooleanVar()
     BatchNumberItemsVar = StringVar()
+    Geometry = StringVar()

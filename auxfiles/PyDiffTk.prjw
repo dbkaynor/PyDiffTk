@@ -6,7 +6,8 @@ PyDiffTk.py project file win32
 LeftPathEntry~C:\Users\dbkaynox\DougPython\tst01
 RightPathEntry~C:\Users\dbkaynox\DougPython\tst02
 FilterEntry~
-SearchEntry~
+SearchEntryMain~
+SearchEntryBatch~
 LeftSearchVar~1
 RightSearchVar~1
 StatusSearchVar~0
@@ -15,12 +16,13 @@ CaseSearchVar~0
 SystemEditorVar~c:\windows\notepad.exe
 SystemLocaterVar~explorer.exe
 SystemDifferVar~C:\Program Files (x86)\WinMerge\WinMergeU.exe
-SystemRenamerVar~C:\Program Files (x86)\Ant Renamer\Renamer.exe
+SystemRenamerVar~
 ShowRightCheckVar~1
 ShowLeftCheckVar~1
-ShowBothCheckVar~0
+ShowBothCheckVar~1
 ShowDiffCheckVar~0
-AutoRefreshCheckVar~0
+ShowDirectoriesCheckVar~1
+AutoRefreshCheckVar~1
 ConfirmCopyCheckVar~1
 ConfirmRenameCheckVar~1
 ConfirmDeleteCheckVar~1
@@ -28,4 +30,4 @@ RecycleCheckVar~1
 CheckSumAutoVar~0
 CheckSumTypeVar~1
 FileTimeTriggerScaleVar~100
-TriggerNumberOfFilesVar~100
+TriggerNumberOfFilesVar~120
